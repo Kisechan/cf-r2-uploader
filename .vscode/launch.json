@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:cf-r2-uploader}",
+            "name": "Debug cfr2uploader",
+            "target": "cfr2uploader",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug cfr2uploader"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:cf-r2-uploader}",
+            "name": "Release cfr2uploader",
+            "target": "cfr2uploader",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release cfr2uploader"
+        }
+    ]
+}
