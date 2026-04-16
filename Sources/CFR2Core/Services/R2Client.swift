@@ -14,9 +14,14 @@ public protocol R2ObjectUploading: Sendable {
 
 public struct R2Client: R2ObjectUploading, Sendable {
     private let clock: @Sendable () -> Date
+    private let logStore: R2RequestLogStore
 
-    public init(clock: @escaping @Sendable () -> Date = Date.init) {
+    public init(
+        clock: @escaping @Sendable () -> Date = Date.init,
+        logStore: R2RequestLogStore = .init()
+    ) {
         self.clock = clock
+        self.logStore = logStore
     }
 
     public func putObject(
@@ -69,6 +74,7 @@ public struct R2Client: R2ObjectUploading, Sendable {
         let signature = Data(HMAC<SHA256>.authenticationCode(for: Data(stringToSign.utf8), using: signingKey)).hexString
 
         headers["authorization"] = "AWS4-HMAC-SHA256 Credential=\(credentials.accessKeyID)/\(credentialScope), SignedHeaders=\(signedHeaders), Signature=\(signature)"
+        let redactedHeaders = Self.redacted(headers)
 
         guard let requestURL = URL(string: "\(config.endpointURL.absoluteString)\(canonicalURI)") else {
             throw UploaderError.underlying("无法构造 R2 上传地址")
@@ -78,6 +84,7 @@ public struct R2Client: R2ObjectUploading, Sendable {
         request.httpMethod = "PUT"
         request.httpBody = data
         headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
+        let start = clock()
 
         do {
             let (responseData, response) = try await URLSession.shared.data(for: request)
@@ -87,15 +94,123 @@ public struct R2Client: R2ObjectUploading, Sendable {
 
             guard (200..<300).contains(httpResponse.statusCode) else {
                 let message = String(data: responseData, encoding: .utf8) ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+                try? logStore.append(
+                    Self.makeLogEntry(
+                        timestamp: start,
+                        requestURL: requestURL,
+                        objectKey: key,
+                        contentType: contentType,
+                        payloadSize: data.count,
+                        requestHeaders: redactedHeaders,
+                        response: httpResponse,
+                        responseData: responseData,
+                        duration: clock().timeIntervalSince(start),
+                        outcome: .failure,
+                        message: message
+                    )
+                )
                 throw UploaderError.uploadFailed(statusCode: httpResponse.statusCode, message: message)
             }
 
+            try? logStore.append(
+                Self.makeLogEntry(
+                    timestamp: start,
+                    requestURL: requestURL,
+                    objectKey: key,
+                    contentType: contentType,
+                    payloadSize: data.count,
+                    requestHeaders: redactedHeaders,
+                    response: httpResponse,
+                    responseData: responseData,
+                    duration: clock().timeIntervalSince(start),
+                    outcome: .success,
+                    message: "上传成功"
+                )
+            )
             return httpResponse.value(forHTTPHeaderField: "ETag")
         } catch let error as UploaderError {
+            if case .uploadFailed = error {} else {
+                try? logStore.append(
+                    Self.makeLogEntry(
+                        timestamp: start,
+                        requestURL: requestURL,
+                        objectKey: key,
+                        contentType: contentType,
+                        payloadSize: data.count,
+                        requestHeaders: redactedHeaders,
+                        response: nil,
+                        responseData: nil,
+                        duration: clock().timeIntervalSince(start),
+                        outcome: .failure,
+                        message: error.localizedDescription
+                    )
+                )
+            }
             throw error
         } catch {
+            try? logStore.append(
+                Self.makeLogEntry(
+                    timestamp: start,
+                    requestURL: requestURL,
+                    objectKey: key,
+                    contentType: contentType,
+                    payloadSize: data.count,
+                    requestHeaders: redactedHeaders,
+                    response: nil,
+                    responseData: nil,
+                    duration: clock().timeIntervalSince(start),
+                    outcome: .failure,
+                    message: error.localizedDescription
+                )
+            )
             throw UploaderError.underlying(error.localizedDescription)
         }
+    }
+
+    private static func redacted(_ headers: [String: String]) -> [String: String] {
+        var redacted = headers
+        if redacted["authorization"] != nil {
+            redacted["authorization"] = "<redacted>"
+        }
+        return redacted
+    }
+
+    private static func makeLogEntry(
+        timestamp: Date,
+        requestURL: URL,
+        objectKey: String,
+        contentType: String,
+        payloadSize: Int,
+        requestHeaders: [String: String],
+        response: HTTPURLResponse?,
+        responseData: Data?,
+        duration: TimeInterval,
+        outcome: R2RequestLogEntry.Outcome,
+        message: String
+    ) -> R2RequestLogEntry {
+        let responseHeaders = response?.allHeaderFields.reduce(into: [String: String]()) { partialResult, item in
+            partialResult[String(describing: item.key).lowercased()] = String(describing: item.value)
+        } ?? [:]
+
+        let responseBodyPreview = responseData
+            .flatMap { String(data: $0, encoding: .utf8) }
+            .map { String($0.prefix(600)) }
+
+        return R2RequestLogEntry(
+            timestamp: timestamp,
+            method: "PUT",
+            requestURL: requestURL.absoluteString,
+            objectKey: objectKey,
+            contentType: contentType,
+            payloadSize: payloadSize,
+            requestHeaders: requestHeaders,
+            statusCode: response?.statusCode,
+            responseHeaders: responseHeaders,
+            responseBodyPreview: responseBodyPreview,
+            durationMilliseconds: Int(duration * 1000),
+            outcome: outcome,
+            message: message
+        )
     }
 
     private static let timestampFormatter: DateFormatter = {

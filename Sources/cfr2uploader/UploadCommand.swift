@@ -1,11 +1,12 @@
 import AppKit
 import ArgumentParser
 import CFR2Core
+import Dispatch
 import Foundation
 
-struct CFR2UploaderCLI: AsyncParsableCommand {
+struct UploadCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "cfr2uploader",
+        commandName: "upload",
         abstract: "上传本地图片到 Cloudflare R2，并返回公开 URL 或 Markdown。"
     )
 
@@ -24,29 +25,54 @@ struct CFR2UploaderCLI: AsyncParsableCommand {
     @Flag(name: .long, help: "上传成功后复制结果到剪贴板。")
     var copy = false
 
-    mutating func run() async throws {
-        let assembly = CoreAssembly()
-        let fileURL = URL(fileURLWithPath: file)
-        let configURL = config.map { URL(fileURLWithPath: $0) }
-        let resolvedProfile = try assembly.resolvedProfile(profileName: profile, configURL: configURL)
-        let result = try await assembly.uploadService.upload(
-            fileURL: fileURL,
-            config: resolvedProfile.config,
-            credentials: resolvedProfile.credentials
-        )
+    mutating func run() throws {
+        let file = self.file
+        let config = self.config
+        let profile = self.profile
+        let format = self.format
+        let copy = self.copy
+        let semaphore = DispatchSemaphore(value: 0)
+        let resultBox = CommandResultBox()
 
-        try? assembly.historyStore.append(result: result, fileName: fileURL.lastPathComponent)
+        Task.detached {
+            defer { semaphore.signal() }
 
-        let outputFormat = Self.resolveOutputFormat(rawValue: format, fallback: resolvedProfile.config.defaultOutput)
-        let output = CLIOutput.render(result: result, format: outputFormat)
+            do {
+                let assembly = CoreAssembly()
+                let fileURL = URL(fileURLWithPath: file)
+                let configURL = config.map { URL(fileURLWithPath: $0) }
+                let resolvedProfile = try assembly.resolvedProfile(profileName: profile, configURL: configURL)
+                let result = try await assembly.uploadService.upload(
+                    fileURL: fileURL,
+                    config: resolvedProfile.config,
+                    credentials: resolvedProfile.credentials
+                )
 
-        if copy {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(output, forType: .string)
+                try? assembly.historyStore.append(result: result, fileName: fileURL.lastPathComponent)
+
+                let outputFormat = Self.resolveOutputFormat(rawValue: format, fallback: resolvedProfile.config.defaultOutput)
+                let output = CLIOutput.render(result: result, format: outputFormat)
+
+                if copy {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(output, forType: .string)
+                }
+
+                print(output)
+            } catch {
+                resultBox.result = .failure(error)
+                return
+            }
+
+            resultBox.result = .success(())
         }
 
-        print(output)
+        semaphore.wait()
+
+        if case .failure(let error) = resultBox.result {
+            throw error
+        }
     }
 
     private static func resolveOutputFormat(rawValue: String?, fallback: UploadOutputFormat) -> UploadOutputFormat {
@@ -56,4 +82,8 @@ struct CFR2UploaderCLI: AsyncParsableCommand {
 
         return UploadOutputFormat(rawValue: rawValue.lowercased()) ?? fallback
     }
+}
+
+private final class CommandResultBox: @unchecked Sendable {
+    var result: Result<Void, Error> = .success(())
 }

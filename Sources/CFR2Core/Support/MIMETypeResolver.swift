@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 public enum MIMETypeResolver {
     public static func resolveImage(for fileURL: URL) throws -> String {
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             throw UploaderError.fileNotFound(fileURL)
         }
 

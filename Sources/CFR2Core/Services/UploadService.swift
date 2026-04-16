@@ -14,12 +14,14 @@ public final class UploadService: Sendable {
         config: R2Config,
         credentials: R2Credentials
     ) async throws -> UploadResult {
-        guard FileManager.default.fileExists(atPath: fileURL.path()) else {
+        let filePath = fileURL.path(percentEncoded: false)
+
+        guard FileManager.default.fileExists(atPath: filePath) else {
             throw UploaderError.fileNotFound(fileURL)
         }
 
         let contentType = try MIMETypeResolver.resolveImage(for: fileURL)
-        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path())
+        let attributes = try FileManager.default.attributesOfItem(atPath: filePath)
         let data = try Data(contentsOf: fileURL)
         let item = UploadItem(
             fileURL: fileURL,

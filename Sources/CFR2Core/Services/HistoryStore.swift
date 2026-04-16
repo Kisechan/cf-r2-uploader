@@ -16,7 +16,7 @@ public struct HistoryStore {
     }
 
     public func load() throws -> [UploadHistoryItem] {
-        guard fileManager.fileExists(atPath: url.path()) else {
+        guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else {
             return []
         }
 

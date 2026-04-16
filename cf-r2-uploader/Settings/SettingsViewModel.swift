@@ -77,7 +77,7 @@ final class SettingsViewModel: ObservableObject {
                 credentials: R2Credentials(accessKeyID: accessKeyID, secretAccessKey: secretAccessKey),
                 forProfile: profileName
             )
-            statusMessage = "配置已保存到 \(configStore.defaultURL.path())"
+            statusMessage = "配置已保存到 \(configStore.defaultURL.path(percentEncoded: false))"
         } catch {
             statusMessage = error.localizedDescription
         }

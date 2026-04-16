@@ -4,18 +4,21 @@ public struct CoreAssembly {
     public let configStore: ConfigStore
     public let keychainStore: KeychainStore
     public let historyStore: HistoryStore
+    public let logStore: R2RequestLogStore
     public let uploadService: UploadService
 
     public init(
         configStore: ConfigStore = .init(),
         keychainStore: KeychainStore = .init(),
         historyStore: HistoryStore = .init(),
-        uploadService: UploadService = .init(client: R2Client())
+        logStore: R2RequestLogStore = .init(),
+        uploadService: UploadService? = nil
     ) {
         self.configStore = configStore
         self.keychainStore = keychainStore
         self.historyStore = historyStore
-        self.uploadService = uploadService
+        self.logStore = logStore
+        self.uploadService = uploadService ?? .init(client: R2Client(logStore: logStore))
     }
 
     public func resolvedProfile(

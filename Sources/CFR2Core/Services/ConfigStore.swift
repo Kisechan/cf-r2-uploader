@@ -23,7 +23,7 @@ public struct ConfigStore {
 
     public func load(from explicitURL: URL? = nil) throws -> UploaderConfiguration {
         let url = explicitURL ?? defaultURL
-        guard fileManager.fileExists(atPath: url.path()) else {
+        guard fileManager.fileExists(atPath: url.path(percentEncoded: false)) else {
             throw UploaderError.configNotFound(url)
         }
 

@@ -19,9 +19,6 @@ struct SettingsView: View {
                     Text("URL").tag(UploadOutputFormat.url)
                     Text("Markdown").tag(UploadOutputFormat.markdown)
                 }
-
-                Divider()
-
                 TextField("Access Key ID", text: $viewModel.accessKeyID)
                 SecureField("Secret Access Key", text: $viewModel.secretAccessKey)
             }

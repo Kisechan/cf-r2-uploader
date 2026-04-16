@@ -13,6 +13,9 @@ struct CFR2UploaderApp: App {
             )
         }
         .menuBarExtraStyle(.window)
+        .onChange(of: scenePhase) {
+            menuBarViewModel.refreshClipboardAvailability()
+        }
 
         Settings {
             SettingsView(
@@ -26,4 +29,6 @@ struct CFR2UploaderApp: App {
             .frame(width: 520, height: 380)
         }
     }
+
+    @Environment(\.scenePhase) private var scenePhase
 }
