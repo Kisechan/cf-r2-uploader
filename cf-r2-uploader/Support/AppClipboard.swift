@@ -71,7 +71,7 @@ enum AppClipboard {
             )
         }
 
-        throw UploaderError.unsupportedFileType(URL(fileURLWithPath: "/Clipboard"))
+        throw UploaderError.underlying("剪贴板中没有可上传的图片数据")
     }
 
     private static let supportedClipboardTypes: [UTType] = [

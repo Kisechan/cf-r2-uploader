@@ -7,10 +7,10 @@ import Foundation
 struct UploadCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "upload",
-        abstract: "上传本地图片到 Cloudflare R2，并返回公开 URL 或 Markdown。"
+        abstract: "上传本地文件到 Cloudflare R2，并返回公开 URL 或 Markdown。"
     )
 
-    @Argument(help: "要上传的本地图片路径。")
+    @Argument(help: "要上传的本地文件路径。")
     var file: String
 
     @Option(name: .long, help: "配置文件路径，默认使用 ~/Library/Application Support/CFR2Uploader/config.json")

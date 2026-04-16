@@ -132,7 +132,6 @@ final class MenuBarViewModel: ObservableObject {
 
     private func selectImage() -> URL? {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canCreateDirectories = false

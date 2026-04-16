@@ -21,7 +21,7 @@ struct MenuBarContentView: View {
                 Button {
                     viewModel.selectAndUpload()
                 } label: {
-                    Label("选择图片并上传", systemImage: "photo.badge.plus")
+                    Label("选择文件并上传", systemImage: "document.badge.plus")
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderedProminent)

@@ -5,7 +5,7 @@ public enum UploaderError: LocalizedError, Sendable, Equatable {
     case invalidConfig(String)
     case credentialsNotFound(profile: String)
     case fileNotFound(URL)
-    case unsupportedFileType(URL)
+    case fileTooLarge(URL, maxSizeInBytes: Int64)
     case invalidPublicBaseURL(String)
     case uploadFailed(statusCode: Int?, message: String)
     case responseDecodeFailed
@@ -22,8 +22,9 @@ public enum UploaderError: LocalizedError, Sendable, Equatable {
             return "Keychain 中找不到 profile=\(profile) 的凭据"
         case .fileNotFound(let url):
             return "找不到文件：\(url.path)"
-        case .unsupportedFileType(let url):
-            return "只支持上传图片文件：\(url.lastPathComponent)"
+        case .fileTooLarge(let url, let maxSizeInBytes):
+            let limit = ByteCountFormatter.string(fromByteCount: maxSizeInBytes, countStyle: .file)
+            return "文件过大：\(url.lastPathComponent)，最大支持 \(limit)"
         case .invalidPublicBaseURL(let value):
             return "公开访问地址无效：\(value)"
         case .uploadFailed(let statusCode, let message):

@@ -2,6 +2,7 @@ import CFR2Core
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: SettingsViewModel
     let didSave: () -> Void
 
@@ -31,6 +32,10 @@ struct SettingsView: View {
 
             HStack {
                 Spacer()
+
+                Button("取消") {
+                    dismiss()
+                }
 
                 Button("重新加载") {
                     viewModel.reload()

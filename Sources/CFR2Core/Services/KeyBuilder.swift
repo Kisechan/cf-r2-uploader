@@ -48,6 +48,6 @@ public struct KeyBuilder: Sendable {
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
             .lowercased()
 
-        return raw.isEmpty ? "image" : raw
+        return raw.isEmpty ? "file" : raw
     }
 }

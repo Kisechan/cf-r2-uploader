@@ -4,6 +4,7 @@ import Testing
 
 private struct FakeR2Client: R2ObjectUploading {
     let etag: String?
+    let expectedContentType: String
 
     func putObject(
         data: Data,
@@ -14,7 +15,7 @@ private struct FakeR2Client: R2ObjectUploading {
         credentials: R2Credentials
     ) async throws -> String? {
         #expect(data.isEmpty == false)
-        #expect(contentType == "image/png")
+        #expect(contentType == expectedContentType)
         #expect(config.bucket == "images")
         return etag
     }
@@ -31,7 +32,7 @@ struct UploadServiceTests {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
 
         let service = UploadService(
-            client: FakeR2Client(etag: "\"etag-value\""),
+            client: FakeR2Client(etag: "\"etag-value\"", expectedContentType: "image/png"),
             keyBuilder: KeyBuilder(
                 calendar: calendar,
                 now: { Date(timeIntervalSince1970: 1_710_408_000) },
@@ -55,20 +56,43 @@ struct UploadServiceTests {
     }
 
     @Test
-    func rejectsUnsupportedFileTypes() async throws {
+    func uploadsPlainTextFile() async throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).txt")
-        try Data("not image".utf8).write(to: tempURL)
+        try Data("hello".utf8).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let service = UploadService(client: FakeR2Client(etag: nil))
+        let service = UploadService(client: FakeR2Client(etag: "\"txt-etag\"", expectedContentType: "text/plain"))
 
-        await #expect(throws: UploaderError.self) {
+        let result = try await service.upload(
+            fileURL: tempURL,
+            config: R2Config(
+                accountID: "account-id",
+                bucket: "images",
+                publicBaseURL: try #require(URL(string: "https://files.example.com"))
+            ),
+            credentials: R2Credentials(accessKeyID: "id", secretAccessKey: "secret")
+        )
+
+        #expect(result.objectKey.hasSuffix(".txt"))
+        #expect(result.publicURL.absoluteString.contains("https://files.example.com/"))
+        #expect(result.contentType == "text/plain")
+    }
+
+    @Test
+    func rejectsFilesLargerThan50MB() async throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).bin")
+        try Data(count: Int(UploadService.maximumFileSizeInBytes + 1)).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let service = UploadService(client: FakeR2Client(etag: nil, expectedContentType: "application/octet-stream"))
+
+        await #expect(throws: UploaderError.fileTooLarge(tempURL, maxSizeInBytes: UploadService.maximumFileSizeInBytes)) {
             _ = try await service.upload(
                 fileURL: tempURL,
                 config: R2Config(
                     accountID: "account-id",
                     bucket: "images",
-                    publicBaseURL: try #require(URL(string: "https://img.example.com"))
+                    publicBaseURL: try #require(URL(string: "https://files.example.com"))
                 ),
                 credentials: R2Credentials(accessKeyID: "id", secretAccessKey: "secret")
             )
