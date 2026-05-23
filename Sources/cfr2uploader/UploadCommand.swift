@@ -7,11 +7,11 @@ import Foundation
 struct UploadCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "upload",
-        abstract: "上传本地文件到 Cloudflare R2，并返回公开 URL 或 Markdown。"
+        abstract: "上传本地文件到 Cloudflare R2，并返回公开 URL 或 Markdown。支持一次上传多个文件。"
     )
 
-    @Argument(help: "要上传的本地文件路径。")
-    var file: String
+    @Argument(help: "要上传的本地文件路径，可传入多个。")
+    var files: [String] = []
 
     @Option(name: .long, help: "配置文件路径，默认使用 ~/Library/Application Support/CFR2Uploader/config.json")
     var config: String?
@@ -25,8 +25,14 @@ struct UploadCommand: ParsableCommand {
     @Flag(name: .long, help: "上传成功后复制结果到剪贴板。")
     var copy = false
 
+    func validate() throws {
+        if files.isEmpty {
+            throw ValidationError("至少需要提供一个本地文件路径。")
+        }
+    }
+
     mutating func run() throws {
-        let file = self.file
+        let files = self.files
         let config = self.config
         let profile = self.profile
         let format = self.format
@@ -39,19 +45,24 @@ struct UploadCommand: ParsableCommand {
 
             do {
                 let assembly = CoreAssembly()
-                let fileURL = URL(fileURLWithPath: file)
                 let configURL = config.map { URL(fileURLWithPath: $0) }
                 let resolvedProfile = try assembly.resolvedProfile(profileName: profile, configURL: configURL)
-                let result = try await assembly.uploadService.upload(
-                    fileURL: fileURL,
-                    config: resolvedProfile.config,
-                    credentials: resolvedProfile.credentials
-                )
-
-                try? assembly.historyStore.append(result: result, fileName: fileURL.lastPathComponent)
-
                 let outputFormat = Self.resolveOutputFormat(rawValue: format, fallback: resolvedProfile.config.defaultOutput)
-                let output = CLIOutput.render(result: result, format: outputFormat)
+                var outputs: [String] = []
+
+                for file in files {
+                    let fileURL = URL(fileURLWithPath: file)
+                    let result = try await assembly.uploadService.upload(
+                        fileURL: fileURL,
+                        config: resolvedProfile.config,
+                        credentials: resolvedProfile.credentials
+                    )
+
+                    try? assembly.historyStore.append(result: result, fileName: fileURL.lastPathComponent)
+                    outputs.append(CLIOutput.render(result: result, format: outputFormat))
+                }
+
+                let output = outputs.joined(separator: "\n")
 
                 if copy {
                     let pasteboard = NSPasteboard.general

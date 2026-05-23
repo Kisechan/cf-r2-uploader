@@ -98,6 +98,20 @@ open cf-r2-uploader.xcodeproj
 swift run cfr2uploader /absolute/path/to/file
 ```
 
+### 构建 CLI 可执行文件
+
+Typora 更适合直接调用编译后的二进制，而不是每次通过 `swift run` 启动。
+
+```bash
+swift build -c release
+```
+
+构建完成后，可执行文件默认位于：
+
+```text
+.build/release/cfr2uploader
+```
+
 ## 配置说明
 
 ### 配置文件路径
@@ -197,6 +211,12 @@ kisechan.CFR2Uploader.credentials
 swift run cfr2uploader /absolute/path/to/file
 ```
 
+也支持一次上传多个文件：
+
+```bash
+swift run cfr2uploader /path/to/a.png /path/to/b.png
+```
+
 支持参数：
 
 ```bash
@@ -209,11 +229,99 @@ swift run cfr2uploader <file> \
 
 参数说明：
 
-- `<file>`：本地文件路径
+- `<file>`：本地文件路径，也可以连续传多个
 - `--config`：指定配置文件路径
 - `--profile`：指定 profile 名称
 - `--format`：输出格式，支持 `url` 和 `markdown`
 - `--copy`：成功后把结果复制到剪贴板
+
+说明：
+
+- 传入多个文件时，CLI 会逐个上传
+- 标准输出会按一行一个结果返回，这样可以直接兼容 Typora 的自定义上传器
+
+## Typora 接入
+
+根据 Typora 官方文档的 “Custom” 方式，Typora 会把待上传图片路径自动追加到你填写的命令后面，并从命令标准输出的最后 N 行读取图片 URL。这个项目现在可以直接兼容这种调用方式。
+
+### 1. 先准备好 CLI
+
+推荐先构建 release 版本：
+
+```bash
+swift build -c release
+```
+
+CLI 路径通常是：
+
+```text
+./.build/release/cfr2uploader
+```
+
+### 2. 确保配置已可用
+
+Typora 调用 CLI 前，需要本项目已经能独立完成上传。你可以任选一种方式准备配置：
+
+- 先启动 Menu Bar App，在设置页保存 R2 配置和凭据
+- 或手工准备 `~/Library/Application Support/CFR2Uploader/config.json`，并确保 Keychain 中已有对应凭据
+
+建议先在终端验证一次：
+
+```bash
+./.build/release/cfr2uploader /absolute/path/to/test.png
+```
+
+### 3. 在 Typora 中填写上传命令
+
+打开 Typora：
+
+1. 进入“偏好设置” -> “图像”
+2. “插入图片时...” 选择“上传图片”
+3. “上传服务”选择“自定义命令”
+4. 在“命令”中填写 CLI 命令
+
+推荐填写：
+
+```bash
+"./.build/release/cfr2uploader" --format url
+```
+
+如果你要显式指定 profile：
+
+```bash
+"./.build/release/cfr2uploader" --profile default --format url
+```
+
+如果你把配置文件放在默认路径之外：
+
+```bash
+"./.build/release/cfr2uploader" --config "/absolute/path/to/config.json" --profile default --format url
+```
+
+注意：
+
+- 不要在命令末尾自己填写图片路径，Typora 会自动追加
+- 建议使用 `--format url`，这样 Typora 会拿到纯图片地址，再自行写回 Markdown
+- 如果可执行文件路径里含空格，务必像上面这样加引号
+
+### 4. 验证与使用
+
+- 点击 Typora 的“验证图片上传选项”
+- 验证通过后，粘贴或插入本地图片即可触发上传
+- Typora 会执行类似下面的命令
+
+```bash
+"./.build/release/cfr2uploader" --format url "/path/to/image-1.png" "/path/to/image-2.png"
+```
+
+CLI 会输出：
+
+```text
+https://files.example.com/uploads/2026/05/23/image-1-abcd1234.png
+https://files.example.com/uploads/2026/05/23/image-2-efgh5678.png
+```
+
+Typora 会读取这些 URL，并替换文档中的本地图片地址。
 
 ### 读取 API 日志
 
